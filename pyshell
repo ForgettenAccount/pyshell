@@ -1,0 +1,111 @@
+#!/bin/env python
+
+import os
+import sys
+import signal
+import subprocess
+
+exec = subprocess.run
+
+def getoutput(command):
+  import os
+  pipe = os.popen('{ ' + command + '; } 2>&1', 'r')
+  text = pipe.read()
+  if text[-1:] == '\n':
+      text = text[:-1]
+  return text
+
+def getstatus(command):
+    import subprocess
+    pipe = subprocess.run(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    sts = pipe.returncode
+    if sts is None: sts = 0
+    return sts
+
+cd = os.chdir
+rm = os.rmdir
+
+dshell = os.getenv("SHELL")
+home = os.getenv("HOME")
+
+cmd = (getoutput("ls /data/data/com.termux/files/usr/bin/").split("\n"))
+
+class files():
+    def __init__(self, command):
+        self.command = command
+
+    def execute(file):
+        if file == "":
+            pass
+        elif file in cmd and file != "cd" and file != "./":
+            exec(file)
+        elif file.startswith("%s " % file):
+            exec(file)
+        elif file == "cd":
+            cd(home)
+        elif file.startswith("cd ~"):
+            cd(home + file[4:])
+        elif file.startswith("cd "):
+            try:
+                cd(file[3:])
+            except FileNotFoundError:
+                print("pyshell: '%s' file or directory not found" % file[3:])
+            except IsADirectoryError:
+                print("pyshell: permission denied")
+            except FileExistsError:
+                print("pyshell: file exists")
+            except NotADirectoryError:
+                print("pyshell: not a directory '%s'" % file[3:])
+        elif file == "rm" or file == "rmdir" or file == "mkdir":
+            pass
+        elif file.startswith("cd ~"):
+            cd(home + file[4:])
+        elif file == "exit":
+            exit()
+        elif file == "info":
+            print("PyShell (Python Shell) v1.1.5\nmade in Python programming language")
+        elif file.startswith("vim") or file.startswith("nvim") or file.startswith("nano") or file.startswith("vi") or file.startswith("./"):
+            os.system(file)
+        elif file.startswith("return"):
+            pass
+        elif file == ".":
+            print("pyshell: . not enough arguments")
+        elif file == "./":
+            pass
+        else:
+          status = getstatus(file)
+          error = getoutput(file) #str(exec(file, shell=True, stderr=subprocess.PIPE,stdin=subprocess.PIPE, stdout=subprocess.PIPE).stderr)
+          if status != 0:
+              if error.startswith("/data/data/com.termux/files/usr/bin/sh"):
+                  print("pyshell: %s" % error[len("/data/data/com.termux/files/usr/bin/sh: "):])#str(exec(file, shell=True, stderr=subprocess.PIPE,stdin=subprocess.PIPE, stdout=subprocess.PIPE).stderr))
+              elif error.startswith("/data/data/com.termux/files/usr/bin/sh: 1: Syntax error:"):
+                  print("pyshell: Syntax error")
+              else:
+                  print("pyshell error:\n%s" % error)
+          else:
+              exec(file, shell=True)
+              check = getoutput(file)
+              if check.startswith("/data/data/com.termux/files/usr/bin/sh: 1: Syntax error:"):
+                  print("pyshell: Syntax error")
+
+
+while True:
+    signal.signal(signal.SIGTSTP, signal.SIG_IGN)
+    try:
+        main = input("%s%s%s> " % ("\x1b[92m", getoutput("pwd"), "\x1b[0m"))
+        
+        if main.startswith("mkdir") or main.startswith("touch") or main.startswith("rm") or main.startswith("rmdir") or main.startswith("lynx"):
+            os.system(main)
+        elif main == main:
+            files.execute(main)
+        else:
+            print("pyshell: unknown command '%s'" % main)
+    except EOFError:
+        print("\nExiting pyshell\n")
+        raise SystemExit
+    except KeyboardInterrupt:
+        print()
+    except (PermissionError, FileNotFoundError, IsADirectoryError, FileExistsError):
+        pass
+    except OSError:
+        os.system("python")
